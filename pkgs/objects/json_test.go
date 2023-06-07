@@ -39,3 +39,24 @@ func TestRemarshJSONReflect(t *testing.T) {
 	assert.Equal(t, out.Data, "data test #1")
 	assert.Equal(t, ptr.Data, "")
 }
+
+func BenchmarkRemarshJSON(b *testing.B) {
+	data := json.JSON{
+		"test": "data test #1",
+	}
+
+	for n := 0; n < b.N; n++ {
+		objects.RemarshJSON[TestStruct](data)
+	}
+}
+
+func BenchmarkRemarshJSONReflect(b *testing.B) {
+	data := json.JSON{
+		"test": "data test #1",
+	}
+	kind := reflect.TypeOf(TestStruct{})
+
+	for n := 0; n < b.N; n++ {
+		objects.RemarshJSONReflect[TestStruct](data, kind)
+	}
+}
