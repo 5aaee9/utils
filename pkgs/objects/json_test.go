@@ -1,6 +1,7 @@
 package objects_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/5aaee9/utils/pkgs/json"
@@ -19,4 +20,22 @@ func TestRemarshJSON(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, out.Data, "data test #1")
+}
+
+func TestRemarshJSONReflect(t *testing.T) {
+	out, err := objects.RemarshJSONReflect[TestStruct](json.JSON{
+		"test": "data test #1",
+	}, reflect.TypeOf(TestStruct{}))
+
+	assert.NoError(t, err)
+	assert.Equal(t, out.Data, "data test #1")
+
+	ptr := new(TestStruct)
+
+	out, err = objects.RemarshJSONReflect[TestStruct](json.JSON{
+		"test": "data test #1",
+	}, reflect.ValueOf(ptr).Type())
+	assert.NoError(t, err)
+	assert.Equal(t, out.Data, "data test #1")
+	assert.Equal(t, ptr.Data, "")
 }
