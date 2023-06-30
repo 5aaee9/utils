@@ -24,7 +24,7 @@ func NewLimiter(size uint64) *Limiter {
 	}
 }
 
-// WaitToTake allow you take data
+// Wait allow you take data
 func (l *Limiter) Wait(size uint64) {
 	var s uint64
 	s = size
@@ -57,4 +57,12 @@ func (l *Limiter) Try(size uint64) (ok bool, remainingCount uint64, waitTime tim
 
 	l.now += reamining
 	return false, size - reamining, l.duration - now.Sub(l.last)
+}
+
+// reset internal for test only
+func (l *Limiter) reset() {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	l.now = 0
 }
