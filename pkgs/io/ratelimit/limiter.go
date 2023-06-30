@@ -47,6 +47,7 @@ func (l *Limiter) Try(size uint64) (ok bool, remainingCount uint64, waitTime tim
 	now := time.Now()
 	if now.Sub(l.last) > l.duration {
 		l.now = 0
+		l.last = time.Now()
 	}
 
 	reamining := l.size - l.now
