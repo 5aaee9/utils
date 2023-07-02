@@ -16,6 +16,13 @@ func NewRateLimitReaderWriterCloser(underlay io.ReadWriteCloser, size uint64) io
 	}
 }
 
+func NewRateLimitReaderWriterCloserShared(underlay io.ReadWriteCloser, l *Limiter) io.ReadWriteCloser {
+	return &RateLimitReadWriteCloser{
+		limiter:  l,
+		underlay: underlay,
+	}
+}
+
 func (r *RateLimitReadWriteCloser) Close() error {
 	return r.underlay.Close()
 }
