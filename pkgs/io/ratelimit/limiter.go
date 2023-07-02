@@ -26,6 +26,10 @@ func NewLimiter(size uint64) *Limiter {
 
 // Wait allow you take data
 func (l *Limiter) Wait(size uint64) {
+	if l.size == 0 {
+		return
+	}
+
 	var s uint64
 	s = size
 	for {
@@ -41,6 +45,10 @@ func (l *Limiter) Wait(size uint64) {
 }
 
 func (l *Limiter) Try(size uint64) (ok bool, remainingCount uint64, waitTime time.Duration) {
+	if l.size == 0 {
+		return true, 0, 0
+	}
+
 	l.lock.Lock()
 	defer l.lock.Unlock()
 

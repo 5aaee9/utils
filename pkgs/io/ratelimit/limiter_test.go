@@ -20,6 +20,20 @@ func TestLimiterTryNonBlock(t *testing.T) {
 	}
 }
 
+func TestLimiterTryNonBlockOnZeroValue(t *testing.T) {
+	limit := 1024
+	limiter := NewLimiter(0)
+	start := time.Now()
+
+	for i := 0; i < limit; i++ {
+		limiter.Wait(1)
+	}
+
+	if time.Now().Sub(start) >= time.Second {
+		t.Error("The limiter blocked when it shouldn't have")
+	}
+}
+
 func TestLimiterTryWithBlock(t *testing.T) {
 	limit := 1024
 	limiter := NewLimiter(uint64(limit))
