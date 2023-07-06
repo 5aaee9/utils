@@ -24,6 +24,16 @@ func NewLimiter(size uint64) *Limiter {
 	}
 }
 
+// NewLimiter returns new limiter
+func NewLimiterWithDuration(size uint64, duration time.Duration) *Limiter {
+	return &Limiter{
+		size:     size,
+		now:      0,
+		duration: duration,
+		last:     time.Now(),
+	}
+}
+
 // Wait allow you take data
 func (l *Limiter) Wait(size uint64) {
 	if l.size == 0 {
