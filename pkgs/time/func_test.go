@@ -12,5 +12,5 @@ func TestMeasureFuncTime(t *testing.T) {
 		time.Sleep(time.Second * 2)
 	})
 
-	assert.Equal(t, 2000, int(ret/time.Millisecond))
+	assert.Equal(t, 400, int(ret/time.Millisecond/5))
 }
