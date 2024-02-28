@@ -6,8 +6,6 @@ import (
 	"math/big"
 	"syscall"
 	"unsafe"
-
-	"github.com/samber/do"
 )
 
 type WindowsSystemProxy struct{}
