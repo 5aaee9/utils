@@ -1,11 +1,11 @@
 package sysproxy
 
 import (
-	"errors"
-	"fmt"
-	"math/big"
+	"os"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 type WindowsSystemProxy struct{}
@@ -17,129 +17,112 @@ func NewSystemProxy() SystemProxy {
 var _ SystemProxy = (*WindowsSystemProxy)(nil)
 
 var (
-	wininet, _           = syscall.LoadLibrary("Wininet.dll")
-	internetSetOption, _ = syscall.GetProcAddress(wininet, "InternetSetOptionW")
+	modwininet             = windows.NewLazySystemDLL("wininet.dll")
+	procInternetSetOptionW = modwininet.NewProc("InternetSetOptionW")
 )
 
 const (
 	internetOptionPerConnectionOption  = 75
-	internetOptionProxySettingsChanged = 95
+	internetOptionSettingsChanged      = 39
 	internetOptionRefresh              = 37
+	internetOptionProxySettingsChanged = 95
 )
 
 const (
-	proxyTypeDirect = 0x00000001 // direct to net
-	proxyTypeProxy  = 0x00000002 // via named proxy
+	internetPerConnFlags                     = 1
+	internetPerConnProxyServer               = 2
+	internetPerConnProxyBypass               = 3
+	internetPerConnAutoconfigUrl             = 4
+	internetPerConnAutodiscoveryFlags        = 5
+	internetPerConnAutoconfigSecondaryUrl    = 6
+	internetPerConnAutoconfigReloadDelayMins = 7
+	internetPerConnAutoconfigLastDetectTime  = 8
+	internetPerConnAutoconfigLastDetectUrl   = 9
+	internetPerConnFlagsUi                   = 10
+	internetOptionProxyUsername              = 43
+	internetOptionProxyPassword              = 44
 )
 
 const (
-	internetPerConnFlags       = 1
-	internetPerConnProxyServer = 2
+	proxyTypeDirect       = 1
+	proxyTypeProxy        = 2
+	proxyTypeAutoProxyUrl = 4
+	proxyTypeAutoDetect   = 8
 )
 
 type internetPerConnOptionList struct {
 	dwSize        uint32
-	pszConnection *uint16
+	pszConnection uintptr
 	dwOptionCount uint32
 	dwOptionError uint32
 	pOptions      uintptr
 }
 
-type internetPreConnOption struct {
+type internetPerConnOption struct {
 	dwOption uint32
 	value    uint64
 }
 
-func stringPtrAddr(str string) (uint64, error) {
-	scriptLocPtr, err := syscall.UTF16PtrFromString(str)
-	if err != nil {
-		return 0, err
+func internetSetOption(option uintptr, lpBuffer uintptr, dwBufferSize uintptr) error {
+	r0, _, err := syscall.SyscallN(procInternetSetOptionW.Addr(), 0, option, lpBuffer, dwBufferSize)
+	if r0 != 1 {
+		return err
 	}
-	n := new(big.Int)
-	n.SetString(fmt.Sprintf("%x\n", scriptLocPtr), 16)
-	return n.Uint64(), nil
+	return nil
 }
 
-func newParam(n int) internetPerConnOptionList {
-	return internetPerConnOptionList{
-		dwSize:        4,
-		pszConnection: nil,
-		dwOptionCount: uint32(n),
-		dwOptionError: 0,
-		pOptions:      0,
+func setOptions(options ...internetPerConnOption) error {
+	var optionList internetPerConnOptionList
+	optionList.dwSize = uint32(unsafe.Sizeof(optionList))
+	optionList.dwOptionCount = uint32(len(options))
+	optionList.dwOptionError = 0
+	optionList.pOptions = uintptr(unsafe.Pointer(&options[0]))
+	err := internetSetOption(internetOptionPerConnectionOption, uintptr(unsafe.Pointer(&optionList)), uintptr(optionList.dwSize))
+	if err != nil {
+		return os.NewSyscallError("InternetSetOption(PerConnectionOption)", err)
 	}
+	err = internetSetOption(internetOptionSettingsChanged, 0, 0)
+	if err != nil {
+		return os.NewSyscallError("InternetSetOption(SettingsChanged)", err)
+	}
+	err = internetSetOption(internetOptionProxySettingsChanged, 0, 0)
+	if err != nil {
+		return os.NewSyscallError("InternetSetOption(ProxySettingsChanged)", err)
+	}
+	err = internetSetOption(internetOptionRefresh, 0, 0)
+	if err != nil {
+		return os.NewSyscallError("InternetSetOption(Refresh)", err)
+	}
+	return nil
+}
+
+func ClearSystemProxy() error {
+	var flagsOption internetPerConnOption
+	flagsOption.dwOption = internetPerConnFlags
+	*((*uint32)(unsafe.Pointer(&flagsOption.value))) = proxyTypeDirect | proxyTypeAutoDetect
+	return setOptions(flagsOption)
+}
+
+func SetSystemProxy(proxy string, bypass string) error {
+	var flagsOption internetPerConnOption
+	flagsOption.dwOption = internetPerConnFlags
+	*((*uint32)(unsafe.Pointer(&flagsOption.value))) = proxyTypeProxy | proxyTypeDirect
+	var proxyOption internetPerConnOption
+	proxyOption.dwOption = internetPerConnProxyServer
+	*((*uintptr)(unsafe.Pointer(&proxyOption.value))) = uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(proxy)))
+	if bypass == "" {
+		return setOptions(flagsOption, proxyOption)
+	}
+	var bypassOption internetPerConnOption
+	bypassOption.dwOption = internetPerConnProxyBypass
+	*((*uintptr)(unsafe.Pointer(&bypassOption.value))) = uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(bypass)))
+	return setOptions(flagsOption, proxyOption, bypassOption)
 }
 
 func (p *WindowsSystemProxy) TurnOn(addrport string) error {
-	proxyServerPtrAddr, err := stringPtrAddr(addrport)
-	if err != nil {
-		return err
-	}
-
-	param := newParam(2)
-	options := []internetPreConnOption{
-		{dwOption: internetPerConnFlags, value: proxyTypeProxy | proxyTypeDirect},
-		{dwOption: internetPerConnProxyServer, value: proxyServerPtrAddr},
-	}
-
-	param.pOptions = uintptr(unsafe.Pointer(&options[0]))
-	ret, _, infoPtr := syscall.SyscallN(internetSetOption,
-		4,
-		0,
-		internetOptionPerConnectionOption,
-		uintptr(unsafe.Pointer(&param)),
-		unsafe.Sizeof(param),
-		0, 0)
-
-	if ret != 1 {
-		return errors.New(fmt.Sprintf("%s", infoPtr))
-	}
-
-	return p.Flush()
+	return SetSystemProxy(addrport, "")
 }
+
 func (p *WindowsSystemProxy) TurnOff() error {
-	param := newParam(1)
-	option := internetPreConnOption{
-		dwOption: internetPerConnFlags,
-		//value:    _PROXY_TYPE_AUTO_DETECT | _PROXY_TYPE_DIRECT}
-		value: proxyTypeDirect}
-	param.pOptions = uintptr(unsafe.Pointer(&option))
-	ret, _, infoPtr := syscall.SyscallN(internetSetOption,
-		4,
-		0,
-		internetOptionPerConnectionOption,
-		uintptr(unsafe.Pointer(&param)),
-		unsafe.Sizeof(param),
-		0, 0)
-
-	if ret != 1 {
-		return errors.New(fmt.Sprintf("%s", infoPtr))
-	}
-
-	return p.Flush()
-}
-
-func (p *WindowsSystemProxy) Flush() error {
-	ret, _, infoPtr := syscall.SyscallN(internetSetOption,
-		4,
-		0,
-		internetOptionProxySettingsChanged,
-		0, 0,
-		0, 0)
-
-	if ret != 1 {
-		return errors.New(fmt.Sprintf("%s", infoPtr))
-	}
-
-	ret, _, infoPtr = syscall.SyscallN(internetSetOption,
-		4,
-		0,
-		internetOptionRefresh,
-		0, 0,
-		0, 0)
-
-	if ret != 1 {
-		return errors.New(fmt.Sprintf("%s", infoPtr))
-	}
-	return nil
+	return ClearSystemProxy()
 }
