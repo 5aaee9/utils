@@ -212,7 +212,6 @@ import "C"
 import (
 	"encoding/json"
 	"errors"
-	"github.com/samber/do"
 	"net"
 	"unsafe"
 )

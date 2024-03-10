@@ -1,6 +1,6 @@
 package sysproxy
 
 type SystemProxy interface {
-	TurnOn(addrport string) error
+	TurnOn(addrPort string) error
 	TurnOff() error
 }
