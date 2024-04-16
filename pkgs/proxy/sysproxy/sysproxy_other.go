@@ -19,3 +19,7 @@ func (p *OtherSystemProxy) TurnOn(addrport string) error {
 func NewSystemProxy() SystemProxy {
 	return &OtherSystemProxy{}
 }
+
+func (p *OtherSystemProxy) Status() (*SystemProxyStatus, error) {
+	return nil, errors.New("not implemented")
+}

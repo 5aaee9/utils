@@ -241,6 +241,10 @@ func (p *DarwinSystemProxy) TurnOff() error {
 	return nil
 }
 
+func (p *DarwinSystemProxy) Status() (*SystemProxyStatus, error) {
+	return nil, nil
+}
+
 func (p *DarwinSystemProxy) TurnOn(addrport string) error {
 	host, port, err := net.SplitHostPort(addrport)
 	if err != nil {

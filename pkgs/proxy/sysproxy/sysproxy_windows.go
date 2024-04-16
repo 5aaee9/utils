@@ -17,8 +17,9 @@ func NewSystemProxy() SystemProxy {
 var _ SystemProxy = (*WindowsSystemProxy)(nil)
 
 var (
-	modwininet             = windows.NewLazySystemDLL("wininet.dll")
-	procInternetSetOptionW = modwininet.NewProc("InternetSetOptionW")
+	modwininet               = windows.NewLazySystemDLL("wininet.dll")
+	procInternetSetOptionW   = modwininet.NewProc("InternetSetOptionW")
+	procInternetQueryOptionA = modwininet.NewProc("InternetQueryOptionA")
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 	internetOptionSettingsChanged      = 39
 	internetOptionRefresh              = 37
 	internetOptionProxySettingsChanged = 95
+	internetOptionProxy                = 38
 )
 
 const (
@@ -61,6 +63,12 @@ type internetPerConnOptionList struct {
 type internetPerConnOption struct {
 	dwOption uint32
 	value    uint64
+}
+
+type internetProxyInfo struct {
+	dwAccessType    uint32
+	lpszProxy       *uint16
+	lpszProxyBypass *uint16
 }
 
 func internetSetOption(option uintptr, lpBuffer uintptr, dwBufferSize uintptr) error {
@@ -125,4 +133,24 @@ func (p *WindowsSystemProxy) TurnOn(addrport string) error {
 
 func (p *WindowsSystemProxy) TurnOff() error {
 	return ClearSystemProxy()
+}
+
+func (p *WindowsSystemProxy) Status() (*SystemProxyStatus, error) {
+	var bufferLength uint32 = 1024 * 10
+	buffer := make([]byte, bufferLength)
+
+	r0, _, err := syscall.SyscallN(procInternetQueryOptionA.Addr(), 0, internetOptionProxy,
+		uintptr(unsafe.Pointer(&buffer[0])), uintptr(unsafe.Pointer(&bufferLength)), 0, 0)
+
+	if r0 != 1 {
+		return nil, err
+	}
+
+	proxyInfo := (*internetProxyInfo)(unsafe.Pointer(&buffer[0]))
+
+	res := &SystemProxyStatus{}
+
+	res.State = proxyInfo.dwAccessType != 1
+
+	return res, nil
 }
