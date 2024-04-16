@@ -213,6 +213,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"os/exec"
+	"strings"
 	"unsafe"
 )
 
@@ -242,7 +244,18 @@ func (p *DarwinSystemProxy) TurnOff() error {
 }
 
 func (p *DarwinSystemProxy) Status() (*SystemProxyStatus, error) {
-	return nil, nil
+	cmd := exec.Command("scutil", "--proxy")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+
+	info := strings.ReplaceAll(string(output), " ", "")
+
+	status := new(SystemProxyStatus)
+	status.State = strings.Contains(info, "HTTPEnable:1") || strings.Contains(info, "HTTPSEnable:1")
+
+	return status, nil
 }
 
 func (p *DarwinSystemProxy) TurnOn(addrport string) error {
