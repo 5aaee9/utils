@@ -62,7 +62,7 @@ func (p *DarwinSystemProxy) Status() (*SystemProxyStatus, error) {
 	info := strings.ReplaceAll(string(output), " ", "")
 
 	status := new(SystemProxyStatus)
-	status.State = strings.Contains(info, "HTTPEnable:1") || strings.Contains(info, "HTTPSEnable:1")
+	status.State = strings.Contains(info, "HTTPEnable:1") || strings.Contains(info, "HTTPSEnable:1") || strings.Contains(info, "SOCKSEnable:1")
 
 	return status, nil
 }
