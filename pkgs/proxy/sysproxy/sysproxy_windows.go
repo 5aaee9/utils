@@ -5,6 +5,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	pWin "github.com/5aaee9/utils/pkgs/platform/windows"
 	"golang.org/x/sys/windows"
 )
 
@@ -17,9 +18,11 @@ func NewSystemProxy() SystemProxy {
 var _ SystemProxy = (*WindowsSystemProxy)(nil)
 
 var (
-	modwininet               = windows.NewLazySystemDLL("wininet.dll")
-	procInternetSetOptionW   = modwininet.NewProc("InternetSetOptionW")
-	procInternetQueryOptionA = modwininet.NewProc("InternetQueryOptionA")
+	modwininet                                = windows.NewLazySystemDLL("wininet.dll")
+	modwinhttp                                = windows.NewLazySystemDLL("winhttp.dll")
+	procInternetSetOptionW                    = modwininet.NewProc("InternetSetOptionW")
+	procInternetQueryOptionA                  = modwininet.NewProc("InternetQueryOptionA")
+	procWinHttpGetIEProxyConfigForCurrentUser = modwinhttp.NewProc("WinHttpGetIEProxyConfigForCurrentUser")
 )
 
 const (
@@ -69,6 +72,13 @@ type internetProxyInfo struct {
 	dwAccessType    uint32
 	lpszProxy       *uint16
 	lpszProxyBypass *uint16
+}
+
+type winHttpCurrentUserIEProxyConfig struct {
+	fAutoDetect       bool
+	lpszAutoConfigUrl *uint16
+	lpszProxy         *uint16
+	lpszProxyBypass   *uint16
 }
 
 func internetSetOption(option uintptr, lpBuffer uintptr, dwBufferSize uintptr) error {
@@ -146,11 +156,24 @@ func (p *WindowsSystemProxy) Status() (*SystemProxyStatus, error) {
 		return nil, err
 	}
 
+	ieConfig := winHttpCurrentUserIEProxyConfig{}
+	r0, _, err = syscall.SyscallN(procWinHttpGetIEProxyConfigForCurrentUser.Addr(), uintptr(unsafe.Pointer(&ieConfig)))
+
+	if r0 != 1 {
+		return nil, err
+	}
+
 	proxyInfo := (*internetProxyInfo)(unsafe.Pointer(&buffer[0]))
 
 	res := &SystemProxyStatus{}
 
-	res.State = proxyInfo.dwAccessType != 1
+	if proxyInfo.dwAccessType != 1 {
+		res.State = true
+	}
+
+	if len(pWin.GoWString(ieConfig.lpszAutoConfigUrl)) > 0 {
+		res.State = true
+	}
 
 	return res, nil
 }
