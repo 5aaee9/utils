@@ -12,6 +12,10 @@ func Test_SystemProxyStatus(t *testing.T) {
 	status, err := proxy.Status()
 	assert.NoError(t, err)
 	assert.NotNil(t, status)
+
+	err = proxy.TurnOff()
+	assert.NoError(t, err)
+
 }
 
 // func Test_CloseSystemProxy(t *testing.T) {

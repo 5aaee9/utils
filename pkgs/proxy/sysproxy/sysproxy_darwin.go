@@ -43,13 +43,15 @@ func (p *DarwinSystemProxy) TurnOff() error {
 		return err
 	}
 
-	for _, t := range firmwareType {
+	for _, t := range append(firmwareType, "autoproxy") {
 		if _, err := RunBashCmd(fmt.Sprintf("networksetup -set%sstate %s off", t, s)); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	_, err = RunBashCmd(fmt.Sprintf("networksetup -setproxyautodiscovery %s off", s))
+
+	return err
 }
 
 func (p *DarwinSystemProxy) Status() (*SystemProxyStatus, error) {
@@ -62,7 +64,11 @@ func (p *DarwinSystemProxy) Status() (*SystemProxyStatus, error) {
 	info := strings.ReplaceAll(string(output), " ", "")
 
 	status := new(SystemProxyStatus)
-	status.State = strings.Contains(info, "HTTPEnable:1") || strings.Contains(info, "HTTPSEnable:1") || strings.Contains(info, "SOCKSEnable:1")
+	status.State = strings.Contains(info, "HTTPEnable:1") ||
+		strings.Contains(info, "HTTPSEnable:1") ||
+		strings.Contains(info, "SOCKSEnable:1") ||
+		strings.Contains(info, "ProxyAutoConfigEnable:1") ||
+		strings.Contains(info, "ProxyAutoDiscoveryEnable:1")
 
 	return status, nil
 }
